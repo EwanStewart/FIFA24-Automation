@@ -2,16 +2,12 @@
 # FC 24 automation script to relist and adjust prices of club items.
 
 import time
-import ipapi
-import warnings
-import re
-import msvcrt
 import requests
 import datetime
 import random
+import subprocess
 
 from selenium import webdriver
-from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
@@ -20,6 +16,8 @@ from selenium.webdriver.chrome.options import Options
 
 PROFILE_TO_USE = "Default"
 SERVER_URL = "http://192.168.1.210/?heartbeat="
+FILE_PATH = "C:/Users/ewans/Desktop/shutdown.bat"
+DEBUG = False
 
 def createBrowserInstance():
 
@@ -37,15 +35,15 @@ def createBrowserInstance():
 
     return webdriver.Chrome(options=options)
 
-def logMessageToServer(msg):
+def logMessageToServer(msg, force_msg):
 
     '''
     Sends a message to local server to track script
     progress.
     '''
-
-    data = {"timestamp": datetime.datetime.now().isoformat()}
-    requests.get(SERVER_URL + msg, params=data)
+    if DEBUG or force_msg:
+        data = {"timestamp": datetime.datetime.now().isoformat()}
+        requests.get(SERVER_URL + msg, params=data)
 
 def loginToWebApp(chromeBrowser):
     # Initial login button after loading animation.
@@ -94,9 +92,16 @@ def getToTransferList(browser):
             By.XPATH, '/html/body/main/section/section/div[2]/div/div/div[3]'))
             ).click()
     
-    logMessageToServer("Entered the transfer list.")
+    logMessageToServer("Entered the transfer list.", False)
 
 def relistAndUpdatePrice(browser):
+    logMessageToServer("Items relist has begun.", False)
+
+    time.sleep(5) # Allow web application to load assets.
+
+    iterations = 0
+    tolerated_failed_attempts = 0
+
     '''
     Attempt to clear any sold items in the transfer list,
     wait to allow application to update.
@@ -116,135 +121,152 @@ def relistAndUpdatePrice(browser):
     While valid items exist to be listed continue.
     '''
     while (1):
-
-        list_price = None # Reset lowest price every iteration to ensure prices are always updated.
-        buy_now_prices = []
-
-        '''
-        Attempt to clear any sold items in the transfer list,
-        wait to allow application to update.
-        If none sold continue as normal.
-        '''
         try:
-            WebDriverWait(browser, 5).until(
-                ec.presence_of_element_located((
-                    By.XPATH, '/html/body/main/section/section/div[2]/div/div/div/section[1]/header/button'))
-                    ).click()
-            time.sleep(2)
-        except:
-            pass
+            iterations += 1
+            if iterations >= 100:
+                break
 
-        '''
-        Press compare on the selected item and wait for application to update.
-        '''
-        try:
-            WebDriverWait(browser, 5).until(
-            ec.element_to_be_clickable((
-                By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[3]/button[9]'))
-                ).click() 
-        
-            time.sleep(4)
-        except:
-            continue_relist = False
-            logMessageToServer("Nothing to relist!")
-            '''
-            Down to the last item break from loop.
-            '''
-            break
-
-        if continue_relist:
-            '''
-            Collate all item element shown from compare price.
-            Find lowest price out of the elements
-            '''
-
-            comapre_prices_list = WebDriverWait(browser, 5).until(
-                ec.visibility_of_element_located((By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div[2]/section/div[2]"))
-            )
-
-            buy_now_list = comapre_prices_list.find_elements(By.XPATH, ".//span[text()='Buy Now:']")
-
-            for span in buy_now_list:
-                price_element = span.find_element(By.XPATH, "./following-sibling::span") 
-                buy_now_prices.append(price_element.text)
+            list_price = None # Reset lowest price every iteration to ensure prices are always updated.
+            buy_now_prices = []
 
             '''
-            If there is a valid list of prices,
-            a list price can be calculated by:
-            lowest price found less ten percent.
+            Attempt to clear any sold items in the transfer list,
+            wait to allow application to update.
+            If none sold continue as normal.
             '''
+            try:
+                WebDriverWait(browser, 5).until(
+                    ec.presence_of_element_located((
+                        By.XPATH, '/html/body/main/section/section/div[2]/div/div/div/section[1]/header/button'))
+                        ).click()
+                time.sleep(2)
+            except:
+                pass
 
-            if (buy_now_prices):
+            '''
+            Press compare on the selected item and wait for application to update.
+            '''
+            try:
+                WebDriverWait(browser, 5).until(
+                ec.element_to_be_clickable((
+                    By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[3]/button[9]'))
+                    ).click() 
+            
+                time.sleep(4)
+            except:
+                continue_relist = False
+                logMessageToServer("Nothing to relist!", False)
+                '''
+                Down to the last item break from loop.
+                '''
+                break
 
-                for i in range(len(buy_now_prices)):
-                    buy_now_prices[i] = buy_now_prices[i].replace(",", "")  # Remove commas to allow for convert to integer.
+            if continue_relist:
+                '''
+                Collate all item element shown from compare price.
+                Find lowest price out of the elements
+                '''
+
+                comapre_prices_list = WebDriverWait(browser, 5).until(
+                    ec.visibility_of_element_located((By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div[2]/section/div[2]"))
+                )
+
+                buy_now_list = comapre_prices_list.find_elements(By.XPATH, ".//span[text()='Buy Now:']")
+
+                for span in buy_now_list:
+                    price_element = span.find_element(By.XPATH, "./following-sibling::span") 
+                    buy_now_prices.append(price_element.text)
 
                 '''
-                Convert to integer and calculate min price.
+                If there is a valid list of prices,
+                a list price can be calculated by:
+                lowest price found less ten percent.
                 '''
-                buy_now_prices = list(map(int, buy_now_prices))
-                list_price = min(buy_now_prices)
 
+                if (buy_now_prices):
+
+                    for i in range(len(buy_now_prices)):
+                        buy_now_prices[i] = buy_now_prices[i].replace(",", "")  # Remove commas to allow for convert to integer.
+
+                    '''
+                    Convert to integer and calculate min price.
+                    '''
+                    buy_now_prices = list(map(int, buy_now_prices))
+                    list_price = min(buy_now_prices)
+
+                    '''
+                    If no price data list for max.
+                    '''
+                    if list_price == None:
+                        list_price = 5000
+
+                    list_price -= list_price * 0.1
+
+                    '''
+                    Ensure items aren't listed for min price.
+                    '''
+                    if list_price <= 200:
+                        list_price = 300
+                        
                 '''
-                If no price data list for max.
+                If something has went wrong ensure the price is max.
                 '''
                 if list_price == None:
                     list_price = 5000
-
-                list_price -= list_price * 0.1
+                
+                '''
+                Take compare price list out of focus.
+                Allow application to process.
+                '''
+                WebDriverWait(browser, 5).until(ec.element_to_be_clickable((
+                    By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))
+                    ).click() 
+                
+                time.sleep(3)
 
                 '''
-                Ensure items aren't listed for min price.
+                Relist the item, with the calculated lowest price.
                 '''
-                if list_price <= 200:
-                    list_price = 300
-                    
-            '''
-            If something has went wrong ensure the price is max.
-            '''
-            if list_price == None:
-                list_price = 5000
-            
-            '''
-            Take compare price list out of focus.
-            Allow application to process.
-            '''
-            WebDriverWait(browser, 5).until(ec.element_to_be_clickable((
-                By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))
-                ).click() 
-            
-            time.sleep(3)
+                WebDriverWait(browser, 5).until(ec.element_to_be_clickable((
+                    By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[2]/div/div[2]/div[2]/div[1]'))
+                    ).click() 
 
+                bidPrice = WebDriverWait(browser, 2).until(ec.element_to_be_clickable((
+                    By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[2]/div[2]/input"))
+                )
+
+                bidPrice.click()
+                bidPrice.send_keys(Keys.CONTROL, 'a')
+                bidPrice.send_keys(Keys.BACKSPACE)
+                bidPrice.send_keys(list_price - 100)
+
+                buyNowPrice = WebDriverWait(browser, 2).until(ec.element_to_be_clickable((
+                    By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[3]/div[2]/input"))
+                ) 
+
+                buyNowPrice.click()
+                buyNowPrice.send_keys(Keys.CONTROL, 'a')
+                buyNowPrice.send_keys(Keys.BACKSPACE)
+                buyNowPrice.send_keys(list_price)
+                        
+                WebDriverWait(browser, 2).until(ec.element_to_be_clickable((
+                    By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/button"))
+                ).click() # Confirm Price.
+
+                time.sleep(2)
+        except:
             '''
-            Relist the item, with the calculated lowest price.
+            Due to the nature of the web application,
+            failures may occur when simulating button presses.
+            Allow for 10 button interactions to fail before breaking the loop.
             '''
-            WebDriverWait(browser, 5).until(ec.element_to_be_clickable((
-                By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[2]/div/div[2]/div[2]/div[1]'))
-                ).click() 
-
-            bidPrice = WebDriverWait(browser, 2).until(ec.element_to_be_clickable((
-                By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[2]/div[2]/input"))
-            )
-
-            bidPrice.click()
-            bidPrice.send_keys(Keys.CONTROL, 'a')
-            bidPrice.send_keys(Keys.BACKSPACE)
-            bidPrice.send_keys(list_price - 100)
-
-            buyNowPrice = WebDriverWait(browser, 2).until(ec.element_to_be_clickable((
-                By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[3]/div[2]/input"))
-            ) 
-
-            buyNowPrice.click()
-            buyNowPrice.send_keys(Keys.CONTROL, 'a')
-            buyNowPrice.send_keys(Keys.BACKSPACE)
-            buyNowPrice.send_keys(list_price)
-                    
-            WebDriverWait(browser, 2).until(ec.element_to_be_clickable((
-                By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/button"))
-            ).click() # Confirm Price.
-
-            time.sleep(2)
+            if tolerated_failed_attempts >= 10:
+                logMessageToServer("Too many errors breaking from relist loop!", False)
+                break
+            else:
+                logMessageToServer("An error in the relist loop was handled!", False)
+                tolerated_failed_attempts += 1
+                continue
 
 def relistItemsOnly(browser):
     time.sleep(5) # Allow web application to load assets.
@@ -281,7 +303,7 @@ def relistItemsOnly(browser):
     
     time.sleep(5)
 
-    logMessageToServer("All items have been relisted only.")
+    logMessageToServer("All items have been relisted only.", False)
 
 def sendWonItemsToTransferList(browser):
     '''
@@ -292,7 +314,7 @@ def sendWonItemsToTransferList(browser):
             By.XPATH, '/html/body/main/section/nav/button[3]'))
             ).click()  
 
-    logMessageToServer("Login into the web application was successful.")
+    logMessageToServer("Login into the web application was successful.", False)
    
     '''
     Transfer targets within the transfers window.
@@ -340,19 +362,44 @@ def sendWonItemsToTransferList(browser):
         
         time.sleep(1)
 
-    logMessageToServer("All items have been added to the transfer list.")
+    coinTotal =     WebDriverWait(browser, 10).until(
+                        ec.presence_of_element_located((
+                            By.XPATH, '/html/body/main/section/section/div[1]/div[1]/div[1]'))
+                            ).text
+    
+    logMessageToServer(str(coinTotal), True)
+    logMessageToServer("All items have been added to the transfer list.", False)
 
 def main():
-    logMessageToServer("Relist Script has been started.")
-
+    logMessageToServer("Relist Script has been started.", False)
     chromeBrowser = createBrowserInstance()
     chromeBrowser.get('https://www.ea.com/fifa/ultimate-team/web-app/')
     try:
         loginToWebApp(chromeBrowser)
         sendWonItemsToTransferList(chromeBrowser)
         getToTransferList(chromeBrowser)
-        #relistItemsOnly(chromeBrowser)
-        relistAndUpdatePrice(chromeBrowser)
+
+        generatedNumber = random.randint(1, 10)
+        if (generatedNumber) <= 6:
+            relistAndUpdatePrice(chromeBrowser)
+        else:
+            relistItemsOnly(chromeBrowser)
+            '''
+            A call to relistAndUpdatePrice after relistItemsOnly will ensure any new items
+            that have been added to the transfer list are listed.
+            '''
+            relistAndUpdatePrice(chromeBrowser)
+    except:
+        pass
     finally:
-        chromeBrowser.close()
+        chromeBrowser.quit()
+
 main()
+
+'''
+After execution turn off the device.
+'''
+time.sleep(10)
+
+p = subprocess.Popen(FILE_PATH, shell=True, stdout = subprocess.PIPE)
+stdout, stderr = p.communicate()
