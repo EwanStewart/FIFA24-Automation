@@ -15,8 +15,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 
 PROFILE_TO_USE = "Default"
-SERVER_URL = "http://192.168.1.210/?heartbeat="
-FILE_PATH = "C:/Users/ewans/Desktop/shutdown.bat"
+SERVER_URL = "http://192.168.1.210/?new_message="
+FILE_PATH = "shutdown-pc.bat"
 DEBUG = False
 
 def createBrowserInstance():
