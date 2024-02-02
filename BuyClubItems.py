@@ -1,12 +1,12 @@
 # Ewan Stewart, 2024
-# FC 24 automation script to relist and adjust prices of club items.
+# FC 24 automation script to buy club items.
 
 import sys
 from WebApplication import WebApplication
 
 def main():
     isDebug = False
-    isShutdown = True
+    isShutdown = False
 
     if (len(sys.argv) > 1):
         isDebug = sys.argv[1]
@@ -15,9 +15,8 @@ def main():
     SeleniumApplication = WebApplication(isDebug, isShutdown)
 
     try:
-        SeleniumApplication.sendWonItemsToTransferList()
-        SeleniumApplication.getToTransferList()
-        SeleniumApplication.relistOrReprice()
+        SeleniumApplication.buyClubItems(False)
+        SeleniumApplication.buyClubItems(True)
     except:
         pass
 
