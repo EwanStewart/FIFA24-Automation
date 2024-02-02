@@ -415,6 +415,12 @@ class WebApplication:
             '''
             self.relistAndUpdatePrice()
 
+    def getNumberOfTransferListItems(self):
+        return (100 - int(WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((
+            By.XPATH, '/html/body/main/section/section/div[2]/div/div/div[3]/div[2]/div/div[1]/span[1]'))
+            ).text)
+        )
+
     def buyClubItems(self, isBadges):
         '''
         Navigate and apply filters:
@@ -425,6 +431,10 @@ class WebApplication:
             5. Silver
         '''
         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/nav/button[3]'))).click()
+        
+        if (self.getNumberOfTransferListItems() <= 10):
+            return
+        
         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/div[2]/div[2]'))).click() 
         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[1]/div/button[3]'))).click() 
         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[3]/div/div'))).click()
