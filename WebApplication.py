@@ -158,11 +158,16 @@ class WebApplication:
             item.click() # Focus the item.
 
             time.sleep(1)
-
-            WebDriverWait(self.chromeBrowser, 10).until(
-                ec.element_to_be_clickable((
-                    By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[3]/button[8]'))
-                    ).click()
+            try:
+                WebDriverWait(self.chromeBrowser, 10).until(
+                    ec.element_to_be_clickable((
+                        By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[3]/button[8]'))
+                        ).click()
+            except:
+                '''
+                Assume the transfer list is full.
+                '''
+                pass
             
             time.sleep(1)
 
