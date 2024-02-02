@@ -6,7 +6,7 @@ from WebApplication import WebApplication
 
 def main():
     isDebug = False
-    isShutdown = False
+    isShutdown = True
 
     if (len(sys.argv) > 1):
         isDebug = sys.argv[1]
