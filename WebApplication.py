@@ -3,7 +3,7 @@ import time
 import requests
 import datetime
 import subprocess
-import random
+import re
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -38,6 +38,7 @@ class WebApplication:
     server_url = "http://192.168.1.210/?new_message="
     debug_url = "http://192.168.1.210/?new_debug_message="
     price_url = "http://192.168.1.210/?write=1"
+    blacklist_url = "http://192.168.1.210/?blacklist"
 
     dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(dir, "shutdown-pc.bat")  
@@ -52,10 +53,15 @@ class WebApplication:
         self.debug = isDebug
         self.shutdown = isShutdown
         self.safeEntry = isWait
+        self.getBlacklisted()
         self.getLastRun()
         self.createBrowserInstance()
         self.loginToWebApp()
 
+    def getBlacklisted(self):
+        response = requests.get(self.blacklist_url)
+        self.response_dict = re.sub('<[^<]+?>', '', response.text)
+        
     def createBrowserInstance(self):
 
         '''
