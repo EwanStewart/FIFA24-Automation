@@ -44,6 +44,8 @@ def main():
             time.sleep(20)
             pass
 
+
+        
         try:
             SeleniumApplication.buyClubItems(False)
         except Exception as e:
@@ -51,6 +53,11 @@ def main():
         try:
             SeleniumApplication.buyClubItems(True)
         except:
+            pass
+
+        try:
+            SeleniumApplication.buyPitchCosmetics(PITCH_PAINT)
+        except Exception as e:
             pass
 
         try:
