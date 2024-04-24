@@ -1196,13 +1196,15 @@ class WebApplication:
     def clearSold(self):
         try:
             for item in self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data.won"):
+                item.click()
                 price = item.find_elements(By.CSS_SELECTOR, "span.currency-coins.value")
                 price = (price.pop()).text
                 price = str(int(price.replace(",", "")))
 
                 name = item.find_element(By.CSS_SELECTOR, "div.name").text
+                
                 try:
-                    desc = item.find_element(By.CSS_SELECTOR, "div.itemDesc").text
+                    desc = item.find_element(By.CSS_SELECTOR, "div.clubView").text
                 except:
                     desc = ""
                     
