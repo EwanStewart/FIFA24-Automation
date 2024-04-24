@@ -3,7 +3,7 @@ import time
 import requests
 import datetime
 import subprocess
-import random
+import re
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -21,6 +21,7 @@ GOLD_HIGH = 82
 
 STADIUM_PAINT = 3
 SEAT_PAINT = 4
+PITCH_PAINT = 1
 
 class SBC:
     def __init__(self, title, rarity, numberOfPlayers, low, high, numberOfRares, rarityMatters):
@@ -38,6 +39,7 @@ class WebApplication:
     server_url = "http://192.168.1.210/?new_message="
     debug_url = "http://192.168.1.210/?new_debug_message="
     price_url = "http://192.168.1.210/?write=1"
+    blacklist_url = "http://192.168.1.210/?blacklist"
 
     dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(dir, "shutdown-pc.bat")  
@@ -52,10 +54,15 @@ class WebApplication:
         self.debug = isDebug
         self.shutdown = isShutdown
         self.safeEntry = isWait
+        self.getBlacklisted()
         self.getLastRun()
         self.createBrowserInstance()
         self.loginToWebApp()
 
+    def getBlacklisted(self):
+        response = requests.get(self.blacklist_url)
+        self.blacklist = [color.strip() for color in response.text.split('<br>') if color.strip()]
+        
     def createBrowserInstance(self):
 
         '''
@@ -1206,10 +1213,16 @@ class WebApplication:
                 try:
                     desc = item.find_element(By.CSS_SELECTOR, "div.clubView").text
                 except:
-                    desc = ""
+                    try:
+                        type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
+                        desc = type_parent.find_element(By.CSS_SELECTOR, "div.clubRow").text
+                    except:
+                        desc = ""
+
+
                     
                 data = {
-                    'item_name': name+desc,
+                    'item_name': name + " " + desc,
                     'sold_price': price
                 }
                 requests.get(self.price_url, params=data)
@@ -1580,6 +1593,115 @@ class WebApplication:
 
         return lowest_price
 
+    def buyPitchCosmetics(self, type):
+        '''
+        Navigate and apply filters:
+            1. Transfers
+            2. Search the Transfer Market
+            3. Club Items
+            4. Pitch
+            5. Pitch Line Paint
+        '''
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/nav/button[3]'))).click()
+
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/div[2]/div[2]'))).click() #Transfer Market
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[1]/div/button[3]'))).click() #Club Items
+
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[2]/button[1]'))).click() #Reset
+
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[2]/div/div'))).click() 
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[2]/div/ul/li[4]'))).click() #Pitch
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[5]/div/div'))).click() 
+        WebDriverWait(self.chromeBrowser, 15).until(ec.element_to_be_clickable((By.XPATH, "/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[5]/div/ul/li["+str(type)+"]"))).click() #Pitch Line Paint
+
+        '''
+        Clear the previous maxBid and minBuyNow.
+        '''
+        maxBid = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[3]/div[2]/input')
+        maxBid.click()
+        maxBid.send_keys(Keys.CONTROL, 'a')
+        maxBid.send_keys(Keys.BACKSPACE)
+
+        minBuyNow = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[5]/div[2]/input')
+        minBuyNow.click()
+        minBuyNow.send_keys(Keys.CONTROL, 'a')
+        minBuyNow.send_keys(Keys.BACKSPACE)
+
+        '''
+        Setup the min buy now price and max bid price.
+        minBuyNow = 1000
+        MaxBid = 350
+        '''
+        for i in range(0,4):
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[3]/div[2]/button[2]'))).click() #max bid
+
+        for i in range(0,18):
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[5]/div[2]/button[2]'))).click() #min buy now
+        
+        '''
+        Search and allow assets to load.
+        '''
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[2]/button[2]'))).click()
+        time.sleep(2)
+
+        '''
+        Gather all auctions on page and places a bid if the item is worth more than 1000 coins.
+        '''
+        listed = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data")
+
+        for i in range(0,len(listed)-1):
+            listed = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data")
+            try:
+                listed[i].click()
+            except:
+                continue
+
+            type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
+
+            time_text = listed[i].find_element(By.CSS_SELECTOR, "span.time").text
+            name_text = listed[i].find_element(By.CSS_SELECTOR, "div.name").text
+            type_text = type_parent.find_element(By.CSS_SELECTOR, "div.clubRow").text
+
+            combined = name_text + " " + type_text
+
+            if (combined in self.blacklist):
+                continue
+            else:
+                print(name_text)
+
+            if not (self.contains_time_words(time_text)):
+                return
+
+            try:
+                WebDriverWait(self.chromeBrowser, 10).until(ec.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(), 'Compare Price')]]"))).click()
+            except:
+                continue
+            try:
+                time.sleep(2)
+
+                lowest_price = self.getLowestPrice()
+
+                WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))).click() #back
+                time.sleep(2)
+                if lowest_price > 1000:
+                    price_element = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/div/input')
+                    price_element.click()
+                    price_element.send_keys(Keys.CONTROL, 'a')
+                    price_element.send_keys(Keys.BACKSPACE)
+                    sale_price = lowest_price * 0.1
+                    if (sale_price > 500):
+                        sale_price = 500
+                    price_element.send_keys(str(sale_price))
+                    WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/button[1]'))).click() #bid
+                    try:
+                        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div/button[1]'))).click() #cancel re-bid
+                    except:
+                        pass
+            except:
+                pass
+
+            time.sleep(5) # Apply delay between bids.
+
     def buyStadiumCosmetics(self, type):
         '''
         Navigate and apply filters:
@@ -1643,6 +1765,14 @@ class WebApplication:
             except:
                 continue
             time_text = listed[i].find_element(By.CSS_SELECTOR, "span.time").text
+            name_text = listed[i].find_element(By.CSS_SELECTOR, "div.name").text
+
+            if (name_text in self.blacklist):
+                print("dont buy")
+                continue
+            else:
+                print(name_text)
+
             if not (self.contains_time_words(time_text)):
                 return
 
@@ -1662,7 +1792,10 @@ class WebApplication:
                     price_element.click()
                     price_element.send_keys(Keys.CONTROL, 'a')
                     price_element.send_keys(Keys.BACKSPACE)
-                    price_element.send_keys(str(lowest_price * 0.2))
+                    sale_price = lowest_price * 0.2
+                    if (sale_price > 500):
+                        sale_price = 500
+                    price_element.send_keys(str(sale_price))
                     WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/button[1]'))).click() #bid
                     try:
                         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div/button[1]'))).click() #cancel re-bid
