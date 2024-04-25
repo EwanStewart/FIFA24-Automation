@@ -1204,6 +1204,7 @@ class WebApplication:
         try:
             for item in self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data.won"):
                 item.click()
+                time.sleep(2)
                 price = item.find_elements(By.CSS_SELECTOR, "span.currency-coins.value")
                 price = (price.pop()).text
                 price = str(int(price.replace(",", "")))
@@ -1211,13 +1212,10 @@ class WebApplication:
                 name = item.find_element(By.CSS_SELECTOR, "div.name").text
                 
                 try:
-                    desc = item.find_element(By.CSS_SELECTOR, "div.clubView").text
+                    type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
+                    desc = type_parent.find_element(By.CSS_SELECTOR, "div.clubView").text  
                 except:
-                    try:
-                        type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
-                        desc = type_parent.find_element(By.CSS_SELECTOR, "div.clubRow").text
-                    except:
-                        desc = ""
+                    desc = ""
 
 
                     
@@ -1586,10 +1584,23 @@ class WebApplication:
         return lowest_price
     
     def getLowestPrice(self):
-        lowest_price = 0
-        l = self.compareItems()
-        if ((l < lowest_price) or (lowest_price == 0)):
-            lowest_price = l
+        try:
+            lowest_price = 0
+            while (1):
+                l = self.compareItems()
+            
+                if ((l < lowest_price) or (lowest_price == 0)):
+                    lowest_price = l
+                list = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "div.paginated-item-list.ut-pinned-list")[1]
+                listed = list.find_element(By.CSS_SELECTOR, "button.flat.pagination.next")
+                if (listed.is_displayed()):
+                    listed.click()
+                    time.sleep(2)
+                else:
+                    break
+        except Exception as e:
+            print(e)
+
 
         return lowest_price
 
@@ -1760,18 +1771,19 @@ class WebApplication:
 
         for i in range(0,len(listed)-1):
             listed = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data")
-            try:
-                listed[i].click()
-            except:
-                continue
+            listed[i].click()
+            time.sleep(2)
+
+            type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
+
             time_text = listed[i].find_element(By.CSS_SELECTOR, "span.time").text
             name_text = listed[i].find_element(By.CSS_SELECTOR, "div.name").text
+            type_text = type_parent.find_element(By.CSS_SELECTOR, "div.clubRow").text
 
-            if (name_text in self.blacklist):
-                print("dont buy")
+            combined = name_text + " " + type_text
+
+            if (combined in self.blacklist):
                 continue
-            else:
-                print(name_text)
 
             if not (self.contains_time_words(time_text)):
                 return
@@ -1801,7 +1813,8 @@ class WebApplication:
                         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div/button[1]'))).click() #cancel re-bid
                     except:
                         pass
-            except:
+            except Exception as e:
+                print(e)
                 pass
 
             time.sleep(5) # Apply delay between bids.

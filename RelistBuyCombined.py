@@ -22,7 +22,7 @@ def main():
         isDebug = sys.argv[1]
         isShutdown = sys.argv[2]
         
-    SeleniumApplication = WebApplication(isDebug, isShutdown, True)
+    SeleniumApplication = WebApplication(isDebug, isShutdown, False)
     
     try:    
         try:
