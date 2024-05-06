@@ -6,20 +6,16 @@ from WebApplication import WebApplication
 
 def main():
     isDebug = False
-    isShutdown = True
+    isShutdown = False
 
     if (len(sys.argv) > 1):
         isDebug = sys.argv[1]
         isShutdown = sys.argv[2]
         
-    SeleniumApplication = WebApplication(isDebug, isShutdown)
+    SeleniumApplication = WebApplication(isDebug, isShutdown, False)
 
-    try:
-        SeleniumApplication.sendWonItemsToTransferList()
-        SeleniumApplication.getToTransferList()
-        SeleniumApplication.relistOrReprice()
-    except:
-        pass
+    while (1):
+        SeleniumApplication.EightyOnePlusPP()
 
     SeleniumApplication.exitApplication()
 

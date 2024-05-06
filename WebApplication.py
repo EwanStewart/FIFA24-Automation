@@ -60,7 +60,10 @@ class WebApplication:
         self.loginToWebApp()
 
     def getBlacklisted(self):
-        response = requests.get(self.blacklist_url)
+        try:
+            response = requests.get(self.blacklist_url)
+        except:
+            pass
         self.blacklist = [color.strip() for color in response.text.split('<br>') if color.strip()]
         
     def createBrowserInstance(self):
@@ -101,7 +104,10 @@ class WebApplication:
         
         if url:
             data = {"timestamp": datetime.datetime.now().isoformat()}
-            requests.get(url + msg, params=data)
+            try:
+                requests.get(url + msg, params=data)
+            except:
+                pass
 
     def loginToWebApp(self):
         self.chromeBrowser.get('https://www.ea.com/fifa/ultimate-team/web-app/')
@@ -283,7 +289,7 @@ class WebApplication:
         sbcs = {}
         # val 0 is quality, val is num of times sbc can be done, val 2 is num of players
         sbcs["Daily Bronze Upgrade"] = [1,2,1]
-        sbcs["TOTS Warm up Daily Login Upgrade"] = [1,2,1]
+        sbcs["Team of the Season Daily Login Upgrade"] = [1,2,1]
         sbcs["Daily Silver Upgrade"] = [2,2,1]
 
         try:
@@ -565,9 +571,9 @@ class WebApplication:
             pass
 
     def EightyOnePlusPP(self):
-        
-        h1_element = self.chromeBrowser.find_element(By.XPATH, "//h1[@class='tileTitle' and text()='80+ Player Pick']")
-        div = h1_element.find_element(By.XPATH, "//h1[@class='tileTitle' and text()='80+ Player Pick']/ancestor::*[3]")
+        self.getToSBC()
+        h1_element = self.chromeBrowser.find_element(By.XPATH, "//h1[@class='tileTitle' and text()='81+ Player Pick']")
+        div = h1_element.find_element(By.XPATH, "//h1[@class='tileTitle' and text()='81+ Player Pick']/ancestor::*[3]")
         div.click()
         time.sleep(5)
 
@@ -585,7 +591,7 @@ class WebApplication:
         
         a = ""
         positionsToFill = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "div.ut-squad-slot-view:not(.ut-squad-slot-view.locked)")
-        for i in range(0, 6):
+        for i in range(0, 8):
             try:
                 positionsToFill[i].click()
             except:
@@ -759,6 +765,11 @@ class WebApplication:
                     self.StoreAllInClub()
                     self.TryDiscardRemainingItems()
                     return
+                elif (pack_title in noDiscard):
+                    pack.find_element(By.CSS_SELECTOR, "button.currency.call-to-action").click()
+                    self.StoreAllInClub()
+                    self.TryDiscardRemainingItems()
+                    return
                 # elif (pack_title in noDiscard):
                 #     pack.find_element(By.CSS_SELECTOR, "button.currency.call-to-action").click()
                 #     self.StoreAllInClub()
@@ -768,8 +779,7 @@ class WebApplication:
                 ec.element_to_be_clickable((
                 By.XPATH, '/html/body/div[4]/section/div/div/button[1]'))
                 ).click()
-            
-            pass
+            return
 
     def AutoBidPlayers(self, playerName, max_bn):
         orignal_mbn_price = max_bn
@@ -1076,6 +1086,10 @@ class WebApplication:
         Click transfers on the left hand pane of the web application.
         Click transfer list within this window.
         '''
+        coinTotal = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.view-navbar-currency-coins").text
+        
+        self.logMessageToServer(str(coinTotal), True)
+
         WebDriverWait(self.chromeBrowser, 5).until(
             ec.presence_of_element_located((
                 By.XPATH, '/html/body/main/section/nav/button[3]'))
@@ -1151,7 +1165,7 @@ class WebApplication:
                     '''
                     Assume the transfer list is full.
                     '''
-                    continue
+                    return
             else:
                 try:
                     WebDriverWait(self.chromeBrowser, 10).until(
@@ -1162,16 +1176,10 @@ class WebApplication:
                     '''
                     Assume the transfer list is full.
                     '''
-                    continue
+                    return
             
             time.sleep(1)
 
-        coinTotal =     WebDriverWait(self.chromeBrowser, 10).until(
-                            ec.presence_of_element_located((
-                                By.XPATH, '/html/body/main/section/section/div[1]/div[1]/div[1]'))
-                                ).text
-        
-        self.logMessageToServer(str(coinTotal), True)
         self.logMessageToServer("All items have been added to the transfer list.", False)
 
     def relistItemsOnly(self):
@@ -1199,6 +1207,7 @@ class WebApplication:
         time.sleep(30)
 
         self.logMessageToServer("All items have been relisted only.", False)
+        self.relistAndUpdatePrice()
 
     def clearSold(self):
         try:
@@ -1240,174 +1249,120 @@ class WebApplication:
         except:
             pass
 
+    def find_grandparent_element(self, tag_name, text):
+        element = self.chromeBrowser.find_element(By.XPATH, f"//{tag_name}[contains(text(), '{text}')]")
+        grandparent_element = element.find_element(By.XPATH, "..").find_element(By.XPATH, "..")
+        return grandparent_element
+
+    def compare_price(self):
+        right_pane = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.DetailPanel")
+        span_element = right_pane.find_element(By.XPATH, "//span[contains(text(), 'Compare Price')]")
+        parent_element = span_element.find_element(By.XPATH, "..").click()
+        time.sleep(2)
+        return parent_element
+    
+
+    def RCItem(self, s):
+        previous_name = ""
+        previous_type = ""
+        same_count = 0
+    
+        while (1):
+            lowest_price = None
+            list_price = 0
+
+            self.clearSold()
+            
+            ListSection = self.find_grandparent_element("h2", s)
+            try:
+                item = ListSection.find_element(By.CSS_SELECTOR, "li.listFUTItem")
+            except:
+                break
+
+            item.click()
+            self.compare_price()
+
+            try:
+                name_text = item.find_element(By.CSS_SELECTOR, "div.name").text
+                
+                try:
+                    type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
+                    desc_text = type_parent.find_element(By.CSS_SELECTOR, "div.clubView").text  
+                except:
+                    desc_text = ""
+
+                combined = name_text + " " + desc_text
+            except:
+                pass
+
+            lowest_price = self.getLowestPrice(1, combined)   
+            
+            if lowest_price == None or lowest_price == 0:
+                lowest_price = 5000
+
+            lowest_price -= int(lowest_price) * 0.10
+            list_price = int(lowest_price)
+
+            item.click() # Exit Compare Pane
+
+            '''
+            Relist the item, with the calculated lowest price.
+            '''
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((
+                By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[2]/div/div[2]/div[2]/div[1]'))
+                ).click() 
+
+            bidPrice = WebDriverWait(self.chromeBrowser, 2).until(ec.element_to_be_clickable((
+                By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[2]/div[2]/input"))
+            )
+
+            bidPrice.click()
+            bidPrice.send_keys(Keys.CONTROL, 'a')
+            bidPrice.send_keys(Keys.BACKSPACE)
+            bidPrice.send_keys(list_price - 100)
+
+            buyNowPrice = WebDriverWait(self.chromeBrowser, 2).until(ec.element_to_be_clickable((
+                By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[3]/div[2]/input"))
+            ) 
+
+            buyNowPrice.click()
+            buyNowPrice.send_keys(Keys.CONTROL, 'a')
+            buyNowPrice.send_keys(Keys.BACKSPACE)
+            buyNowPrice.send_keys(list_price)
+
+            highlighted_item = self.chromeBrowser.find_element(By.CSS_SELECTOR, 'div.ut-navigation-container-view--content')
+            name = highlighted_item.find_element(By.CSS_SELECTOR, 'div.name').text  
+            type = highlighted_item.find_element(By.CSS_SELECTOR, 'div.clubRow').text  
+
+            if (name == previous_name):
+                same_count += 1
+            else:
+                same_count = 0
+            
+            if same_count == 3:
+                return
+
+            WebDriverWait(self.chromeBrowser, 2).until(ec.element_to_be_clickable((
+                By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/button"))
+            ).click() # Confirm Price.
+
+            previous_name = name
+            previous_type = type 
+
+            time.sleep(2)
+
     def relistAndUpdatePrice(self):
         self.logMessageToServer("Items relist and reprice has begun.", False)
 
         time.sleep(5) # Allow web application to load assets.
-
-        iterations = 0
-        tolerated_failed_attempts = 0
-
-        self.clearSold()
         
-        continue_relist = True
-        previous_name = ""
-        previous_type = ""
-        same_count = 0
-        '''
-        While valid items exist to be listed continue.
-        '''
-        while (1):
-            try:
-                iterations += 1
-                if iterations >= 100:
-                    break
+        self.clearSold()
 
-                list_price = None # Reset lowest price every iteration to ensure prices are always updated.
-                buy_now_prices = []
+        self.RCItem("Unsold Items")
+        self.RCItem("Available Items")
 
-                self.clearSold()
 
-                '''
-                Press compare on the selected item and wait for application to update.
-                '''
-                try:
-                    WebDriverWait(self.chromeBrowser, 5).until(
-                    ec.element_to_be_clickable((
-                        By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[3]/button[9]'))
-                        ).click() 
-                
-                    time.sleep(4)
-                except:
-                    continue_relist = False
-                    self.logMessageToServer("Nothing to relist!", False)
-                    '''
-                    Down to the last item break from loop.
-                    '''
-                    break
 
-                if continue_relist:
-                    '''
-                    Collate all item element shown from compare price.
-                    Find lowest price out of the elements
-                    '''
-
-                    compare_prices_list = WebDriverWait(self.chromeBrowser, 5).until(
-                        ec.visibility_of_element_located((By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div[2]/section/div[2]"))
-                    )
-
-                    buy_now_list = compare_prices_list.find_elements(By.XPATH, ".//span[text()='Buy Now:']")
-
-                    for span in buy_now_list:
-                        price_element = span.find_element(By.XPATH, "./following-sibling::span") 
-                        buy_now_prices.append(price_element.text)
-
-                    '''
-                    If there is a valid list of prices,
-                    a list price can be calculated by:
-                    lowest price found less ten percent.
-                    '''
-
-                    if (buy_now_prices):
-
-                        for i in range(len(buy_now_prices)):
-                            buy_now_prices[i] = buy_now_prices[i].replace(",", "")  # Remove commas to allow for convert to integer.
-
-                        '''
-                        Convert to integer and calculate min price.
-                        '''
-                        buy_now_prices = list(map(int, buy_now_prices))
-                        list_price = min(buy_now_prices)
-
-                        '''
-                        If no price data list for max.
-                        '''
-                        if list_price == None:
-                            list_price = 5000
-
-                        list_price -= list_price * 0.10
-
-                        '''
-                        Ensure items aren't listed for min price.
-                        '''
-                        if list_price <= 200:
-                            list_price = 300
-                            
-                    '''
-                    If something has went wrong ensure the price is max.
-                    '''
-                    if list_price == None:
-                        list_price = 5000
-                    
-                    '''
-                    Take compare price list out of focus.
-                    Allow application to process.
-                    '''
-                    WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((
-                        By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))
-                        ).click() 
-                    
-                    time.sleep(3)
-
-                    '''
-                    Relist the item, with the calculated lowest price.
-                    '''
-                    WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((
-                        By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[2]/div/div[2]/div[2]/div[1]'))
-                        ).click() 
-
-                    bidPrice = WebDriverWait(self.chromeBrowser, 2).until(ec.element_to_be_clickable((
-                        By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[2]/div[2]/input"))
-                    )
-
-                    bidPrice.click()
-                    bidPrice.send_keys(Keys.CONTROL, 'a')
-                    bidPrice.send_keys(Keys.BACKSPACE)
-                    bidPrice.send_keys(list_price - 100)
-
-                    buyNowPrice = WebDriverWait(self.chromeBrowser, 2).until(ec.element_to_be_clickable((
-                        By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/div[3]/div[2]/input"))
-                    ) 
-
-                    buyNowPrice.click()
-                    buyNowPrice.send_keys(Keys.CONTROL, 'a')
-                    buyNowPrice.send_keys(Keys.BACKSPACE)
-                    buyNowPrice.send_keys(list_price)
-
-                    highlighted_item = self.chromeBrowser.find_element(By.CSS_SELECTOR, 'div.ut-navigation-container-view--content')
-                    name = highlighted_item.find_element(By.CSS_SELECTOR, 'div.name').text  
-                    type = highlighted_item.find_element(By.CSS_SELECTOR, 'div.clubRow').text  
-
-                    if (name == previous_name and type == previous_type):
-                        same_count += 1
-                    else:
-                        same_count = 0
-                    
-                    if same_count == 3:
-                        return
-
-                    WebDriverWait(self.chromeBrowser, 2).until(ec.element_to_be_clickable((
-                        By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[2]/div[2]/button"))
-                    ).click() # Confirm Price.
-
-                    previous_name = name
-                    previous_type = type 
-
-                    time.sleep(2)
-            except:
-                '''
-                Due to the nature of the web application,
-                failures may occur when simulating button presses.
-                Allow for 10 button interactions to fail before breaking the loop.
-                '''
-                if tolerated_failed_attempts >= 10:
-                    self.logMessageToServer("Too many errors breaking from relist loop!", False)
-                    break
-                else:
-                    self.logMessageToServer("An error in the relist loop was handled!", False)
-                    tolerated_failed_attempts += 1
-                    continue
-    
     def writeToOutFile(self, value):
         with open(self.out_filename, "w") as file:
             file.write(str(value))
@@ -1436,16 +1391,11 @@ class WebApplication:
 
             subprocess.Popen(self.file_path, shell=True, stdout = subprocess.PIPE).communicate()
 
-    def relistOrReprice(self):
-        if (self.isReprice):
-            self.relistAndUpdatePrice()
-        else:
+    def relistOrReprice(self):  
+        if not self.isReprice:
             self.relistItemsOnly()
-            '''
-            A call to relistAndUpdatePrice after relistItemsOnly will ensure any new items
-            that have been added to the transfer list are listed.
-            '''
-            self.relistAndUpdatePrice()
+
+        self.relistAndUpdatePrice()
 
     def getNumberOfTransferListItems(self):
         return (100 - int(WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((
@@ -1515,6 +1465,113 @@ class WebApplication:
         '''
         Gather all auctions on page and places a bid if the item is worth more than 1000 coins.
         '''
+
+        while (1):
+            listed = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data")
+            for i in range(0,len(listed)):
+                listed[i].click()
+                type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active")
+
+                time_text = listed[i].find_element(By.CSS_SELECTOR, "span.time").text
+                name_text = listed[i].find_element(By.CSS_SELECTOR, "div.name").text
+                type_text = type_parent.find_element(By.CSS_SELECTOR, "div.clubRow").text
+                combined = name_text + " " + type_text
+
+                if not (self.contains_time_words(time_text)):
+                    return
+
+                try:
+                    self.compare_price()
+                    lowest_price = self.getLowestPrice(0, combined)   
+
+                    listed[i].click()
+                    WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))).click() #back
+                    time.sleep(2)
+                    if lowest_price > 1000:
+                        price_element = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/div/input')
+                        price_element.click()
+                        price_element.send_keys(Keys.CONTROL, 'a')
+                        price_element.send_keys(Keys.BACKSPACE)
+                        price_element.send_keys(str(lowest_price * 0.1))
+                        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/button[1]'))).click() #bid
+                        try:
+                            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div/button[1]'))).click() #cancel re-bid
+                        except:
+                            pass
+                except:
+                    pass
+            list = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "div.paginated-item-list.ut-pinned-list")[0]
+            listed = list.find_element(By.CSS_SELECTOR, "button.flat.pagination.next")
+            if (listed.is_displayed()):
+                listed.click()
+                time.sleep(2)
+            else:
+                break
+
+
+    def buyClubItemsGold(self, isBadges):
+        '''
+        Navigate and apply filters:
+            1. Transfers
+            2. Search the Transfer Market
+            3. Club Items
+            4. Quality
+            5. Silver
+        '''
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/nav/button[3]'))).click()
+        
+        if (self.getNumberOfTransferListItems() <= 10):
+            return
+        
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/div[2]/div[2]'))).click() 
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[1]/div/button[3]'))).click() 
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[3]/div/div'))).click()
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[3]/div/ul/li[4]'))).click() 
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[4]/div/div'))).click()
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[4]/div/ul/li[3]'))).click()
+        if isBadges:
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[5]/div/div'))).click()
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[1]/div[5]/div/ul/li[3]'))).click()
+
+        '''
+        Clear the previous maxBid and minBuyNow.
+        '''
+        maxBid = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[3]/div[2]/input')
+        maxBid.click()
+        maxBid.send_keys(Keys.CONTROL, 'a')
+        maxBid.send_keys(Keys.BACKSPACE)
+
+        minBuyNow = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[5]/div[2]/input')
+        minBuyNow.click()
+        minBuyNow.send_keys(Keys.CONTROL, 'a')
+        minBuyNow.send_keys(Keys.BACKSPACE)
+
+        '''
+        Setup the min buy now price and max bid price.
+        minBuyNow = 1000
+        MaxBid = 350
+        '''
+        for i in range(0,8):
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[3]/div[2]/button[2]'))).click() #max bid
+
+        for i in range(0,18):
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[1]/div[2]/div[5]/div[2]/button[2]'))).click() #min buy now
+        
+        '''
+        Search and allow assets to load.
+        '''
+        WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div[2]/div/div[2]/button[2]'))).click()
+        time.sleep(2)
+
+
+
+        for i in range(0,4):
+            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section[1]/div/div/button[2]'))).click() 
+            time.sleep(0.5)
+
+        '''
+        Gather all auctions on page and places a bid if the item is worth more than 1000 coins.
+        '''
         listed = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data")
 
         for i in range(0,len(listed)-1):
@@ -1523,26 +1580,11 @@ class WebApplication:
             if not (self.contains_time_words(time_text)):
                 return
 
-            WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[3]/button[2]'))).click() #compare
             try:
-                time.sleep(2)
-                list_element = WebDriverWait(self.chromeBrowser, 10).until(
-                    ec.visibility_of_element_located((By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div[2]/section/div[2]"))
-                )
+                self.compare_price()
+                lowest_price = self.getLowestPrice(0)   
 
-                buy_now_spans = list_element.find_elements(By.XPATH, ".//span[text()='Buy Now:']")
-                buy_now_prices = []
-
-                for span in buy_now_spans:
-                    price_element = span.find_element(By.XPATH, "./following-sibling::span")  # Assuming price is in a following span
-                    price_text = (price_element.text)
-                    buy_now_prices.append(price_text)
-
-                if (buy_now_prices):
-                    for i in range(len(buy_now_prices)):
-                        buy_now_prices[i] = buy_now_prices[i].replace(",", "")  # Modify each item
-                    buy_now_prices = list(map(int, buy_now_prices))
-                    lowest_price = min(buy_now_prices)
+                listed[i].click()
 
                 WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))).click() #back
                 time.sleep(2)
@@ -1551,7 +1593,10 @@ class WebApplication:
                     price_element.click()
                     price_element.send_keys(Keys.CONTROL, 'a')
                     price_element.send_keys(Keys.BACKSPACE)
-                    price_element.send_keys(str(lowest_price * 0.1))
+                    bid_price = lowest_price * 0.1
+                    if (bid_price < 500):
+                        bid_price = 500
+                    price_element.send_keys(str(bid_price))
                     WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/button[1]'))).click() #bid
                     try:
                         WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/div[4]/section/div/div/button[1]'))).click() #cancel re-bid
@@ -1559,8 +1604,6 @@ class WebApplication:
                         pass
             except:
                 pass
-
-            time.sleep(2) # Apply delay between bids.
 
     def compareItems(self):
         list_element = WebDriverWait(self.chromeBrowser, 10).until(
@@ -1580,26 +1623,67 @@ class WebApplication:
                 buy_now_prices[i] = buy_now_prices[i].replace(",", "")  # Modify each item
             buy_now_prices = list(map(int, buy_now_prices))
             lowest_price = min(buy_now_prices)
+
+        return lowest_price
+    
+    def compareItemsAlt(self):
+        list_element = WebDriverWait(self.chromeBrowser, 10).until(
+            ec.visibility_of_element_located((By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div[2]/section/div[2]"))
+        )
+
+        buy_now_spans = list_element.find_elements(By.XPATH, ".//span[text()='Buy Now:']")
+        buy_now_prices = []
+
+        for span in buy_now_spans:
+            price_element = span.find_element(By.XPATH, "./following-sibling::span")  # Assuming price is in a following span
+            price_text = (price_element.text)
+            buy_now_prices.append(price_text)
+
+        if (buy_now_prices):
+            for i in range(len(buy_now_prices)):
+                buy_now_prices[i] = buy_now_prices[i].replace(",", "")  # Modify each item
+            buy_now_prices = list(map(int, buy_now_prices))
+            lowest_price = min(buy_now_prices)
+            buy_now_prices.remove(lowest_price)
+            lowest_price_second = min(buy_now_prices)
+
+        if (lowest_price_second - lowest_price) > 1000:
+            return lowest_price_second
+
         
         return lowest_price
     
-    def getLowestPrice(self):
+    def getLowestPrice(self, isAlt, combined):
         try:
             lowest_price = 0
             while (1):
-                l = self.compareItems()
+                if (isAlt):
+                    l = self.compareItemsAlt()
+                else:
+                    l = self.compareItems()
+                    
             
                 if ((l < lowest_price) or (lowest_price == 0)):
                     lowest_price = l
-                list = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "div.paginated-item-list.ut-pinned-list")[1]
-                listed = list.find_element(By.CSS_SELECTOR, "button.flat.pagination.next")
-                if (listed.is_displayed()):
-                    listed.click()
-                    time.sleep(2)
+                    list = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "div.paginated-item-list.ut-pinned-list")[1]
+                    listed = list.find_element(By.CSS_SELECTOR, "button.flat.pagination.next")
+                    if (listed.is_displayed()):
+                        listed.click()
+                        time.sleep(2)
+                    
+                    data = {
+                        'name': combined,
+                        'price':lowest_price
+                    }
+
+                    requests.get("http://192.168.1.210?write_seen=1", params=data)
                 else:
                     break
         except Exception as e:
             print(e)
+
+        if lowest_price == 0:
+            lowest_price = 5000
 
 
         return lowest_price
@@ -1690,11 +1774,11 @@ class WebApplication:
             try:
                 time.sleep(2)
 
-                lowest_price = self.getLowestPrice()
+                lowest_price = self.getLowestPrice(0, combined)
 
                 WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))).click() #back
                 time.sleep(2)
-                if lowest_price > 1000:
+                if lowest_price > 2000:
                     price_element = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div/section[2]/div/div/div[2]/div[2]/div/input')
                     price_element.click()
                     price_element.send_keys(Keys.CONTROL, 'a')
@@ -1795,7 +1879,7 @@ class WebApplication:
             try:
                 time.sleep(2)
 
-                lowest_price = self.getLowestPrice()
+                lowest_price = self.getLowestPrice(0, combined)
 
                 WebDriverWait(self.chromeBrowser, 5).until(ec.element_to_be_clickable((By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div[1]/button'))).click() #back
                 time.sleep(2)
@@ -1816,8 +1900,6 @@ class WebApplication:
             except Exception as e:
                 print(e)
                 pass
-
-            time.sleep(5) # Apply delay between bids.
 
     def buyManagers(self, nationNum):
             '''

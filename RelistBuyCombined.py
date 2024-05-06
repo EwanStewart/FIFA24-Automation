@@ -22,7 +22,7 @@ def main():
         isDebug = sys.argv[1]
         isShutdown = sys.argv[2]
         
-    SeleniumApplication = WebApplication(isDebug, isShutdown, False)
+    SeleniumApplication = WebApplication(isDebug, isShutdown, True)
     
     try:    
         try:
@@ -36,16 +36,16 @@ def main():
             time.sleep(20)
             pass
 
-        try:
-            SeleniumApplication.getToTransferList()
-            SeleniumApplication.relistOrReprice()
-        except Exception as e:
-            print(e)
-            time.sleep(20)
-            pass
-
-
-        
+        for i in range(0,5):
+            try:
+                SeleniumApplication.getToTransferList()
+                SeleniumApplication.relistOrReprice()
+                SeleniumApplication.sendWonItemsToTransferList()
+            except Exception as e:
+                print(e)
+                time.sleep(20)
+                pass        
+            
         try:
             SeleniumApplication.buyClubItems(False)
         except Exception as e:
@@ -55,10 +55,6 @@ def main():
         except:
             pass
 
-        try:
-            SeleniumApplication.buyPitchCosmetics(PITCH_PAINT)
-        except Exception as e:
-            pass
 
         try:
             SeleniumApplication.buyStadiumCosmetics(SEAT_PAINT)
