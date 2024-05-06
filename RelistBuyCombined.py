@@ -32,7 +32,8 @@ def main():
           
         try:
             SeleniumApplication.sendWonItemsToTransferList()
-        except:
+        except Exception as e:
+            print(e)
             time.sleep(20)
             pass
 
@@ -44,7 +45,9 @@ def main():
             except Exception as e:
                 print(e)
                 time.sleep(20)
-                pass        
+                pass       
+
+        SeleniumApplication.bidManagerLeague("Bundesliga") 
             
         try:
             SeleniumApplication.buyClubItems(False)
@@ -56,10 +59,10 @@ def main():
             pass
 
 
-        try:
-            SeleniumApplication.buyStadiumCosmetics(SEAT_PAINT)
-        except Exception as e:
-            pass
+        # try:
+        #     SeleniumApplication.buyStadiumCosmetics(SEAT_PAINT)
+        # except Exception as e:
+        #     pass
     except:
         pass
 

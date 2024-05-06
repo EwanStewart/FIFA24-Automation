@@ -1147,6 +1147,20 @@ class WebApplication:
         '''
         won_items = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-auction-data.won")
 
+        try:
+            ListSection = self.find_grandparent_element("h2", "Won Items")
+
+            m = ListSection.find_elements(By.CSS_SELECTOR, "li[class*='has-substring']")
+
+            for item in m:
+                item.click()
+                WebDriverWait(self.chromeBrowser, 10).until(
+                    ec.element_to_be_clickable((
+                        By.XPATH, '/html/body/main/section/section/div[2]/div/div/section/div/div/div[2]/div[3]/button[6]'))
+                        ).click()
+        except:
+            pass
+
         for item in won_items:
             item.click() # Focus the item.
 
@@ -1645,13 +1659,94 @@ class WebApplication:
             buy_now_prices = list(map(int, buy_now_prices))
             lowest_price = min(buy_now_prices)
             buy_now_prices.remove(lowest_price)
-            lowest_price_second = min(buy_now_prices)
+            if (len(buy_now_prices) > 0):
+                lowest_price_second = min(buy_now_prices)
+            else:
+                return lowest_price
 
         if (lowest_price_second - lowest_price) > 1000:
             return lowest_price_second
 
         
         return lowest_price
+    
+    def bidManagerLeague(self, league):
+        self.chromeBrowser.find_element(By.CSS_SELECTOR, "button.ut-tab-bar-item.icon-club").click()
+        time.sleep(2)
+        self.chromeBrowser.find_element(By.CSS_SELECTOR, "div[class*=consumables-tile]").click()
+        time.sleep(2)
+        self.chromeBrowser.find_element(By.CSS_SELECTOR, "div[class*=managerLeague-tile]").click()
+        time.sleep(2)
+        list = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "li.listFUTItem.has-substring")
+
+        for item in list:
+            item.click()
+            time.sleep(1)
+
+            type_parent = self.chromeBrowser.find_element(By.CSS_SELECTOR, "div.tns-item.tns-slide-active").text
+            
+            if (league in type_parent):
+                self.compare_price()
+                time.sleep(1)
+                while(1):
+                    listOfItems = self.chromeBrowser.find_elements(By.CSS_SELECTOR, "div.paginated-item-list.ut-pinned-list")[1]
+                    items = listOfItems.find_elements(By.CSS_SELECTOR, "li[class*=listFUTItem]")
+
+                    try:
+                        for each in items:
+                            
+                            time_text = each.find_element(By.CSS_SELECTOR, "span.time").text
+
+                            if not (self.contains_time_words(time_text)):
+                                return
+            
+                            minBidPriceParent = each.find_element(By.CSS_SELECTOR, "div.auctionStartPrice.auctionValue")
+                            minBidPrice = minBidPriceParent.find_element(By.CSS_SELECTOR, "span.currency-coins.value").text.replace(",", "")
+
+                            currentBidParent = each.find_elements(By.CSS_SELECTOR, "div.auctionValue")[1]
+                            currentBid = currentBidParent.find_element(By.CSS_SELECTOR, "span.currency-coins.value").text.replace(",", "")
+
+                            if (currentBid == "---"):
+                                currentBid = 0
+                            
+                            print(minBidPrice)
+                            if (int(minBidPrice) <= 500 and int(currentBid) <= 500):
+                                minBidPriceParent.click()
+                                time.sleep(1)
+
+                                maxBid = self.chromeBrowser.find_element("xpath", '/html/body/main/section/section/div[2]/div/div/section/div[2]/section/div/div/div[2]/div[2]/div/input')
+                                maxBid.click()
+                                maxBid.send_keys(Keys.CONTROL, 'a')
+                                maxBid.send_keys(Keys.BACKSPACE)
+                                maxBid.send_keys("500")
+
+                                self.chromeBrowser.find_element(By.CSS_SELECTOR, "button.btn-standard.call-to-action.bidButton").click()
+                                time.sleep(1)
+
+                                try:
+                                    self.chromeBrowser.find_element(By.XPATH, "/html/body/div[4]/section/div/div/button[1]").click()
+                                except:
+                                    pass
+
+                                self.chromeBrowser.find_element(By.XPATH, "/html/body/main/section/section/div[2]/div/div/section/div[1]/button").click()
+
+                                time.sleep(1)
+
+                    except Exception as e:
+                        print(e)
+
+                    nextbtn = listOfItems.find_element(By.CSS_SELECTOR, "button.flat.pagination.next")
+                    if (nextbtn.is_displayed()):
+                        nextbtn.click()
+                        time.sleep(2)
+                
+
+
+
+
+
+        while 1:
+            pass
     
     def getLowestPrice(self, isAlt, combined):
         try:
